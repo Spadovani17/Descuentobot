@@ -1,0 +1,53 @@
+name: Discount Alert Bot
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  track-discounts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore previous state cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: projects/telegram-discount-bot/state
+          key: discount-state-${{ github.run_id }}
+          restore-keys: |
+            discount-state-
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r projects/telegram-discount-bot/requirements.txt
+
+      - name: Run discount monitor
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DROP_THRESHOLD: "50"
+          STATE_PATH: projects/telegram-discount-bot/state/prices.json
+          MAX_ITEMS_PER_SITE: "80"
+          MAX_ALERTS_PER_RUN: "20"
+        run: python projects/telegram-discount-bot/bot.py
+
+      - name: Save updated state cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: projects/telegram-discount-bot/state
+          key: discount-state-${{ github.run_id }}
